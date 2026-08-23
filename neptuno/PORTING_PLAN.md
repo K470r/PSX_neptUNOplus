@@ -5,10 +5,22 @@ que avanza el trabajo. Última actualización: ver historial de git.
 
 ## 0. Estado
 
-Fase de arquitectura/andamiaje completada. Empezando la reescritura del
-módulo "gordo" (`neptuno/psx_mist.sv`, copia sin modificar de `PSX.sv` como
-punto de partida). Nada de esto ha sido compilado ni probado en hardware
-todavía.
+`neptuno/psx_mist.sv` reescrito (primer borrador) reemplazando `hps_io` por
+`user_io`/`data_io`/`osd` de `mist-modules`, con `MISTER_DUAL_SDRAM`
+activado permanentemente. Es también el `TOP_LEVEL_ENTITY` directamente
+(módulo `psx_mist_core`) — se decidió no crear un wrapper "thin" separado
+(`psx_neptuno_top.sv`) porque, a diferencia de NeoGeo/PCEngine, este port
+no comparte el mismo core entre varias placas MiST distintas; un solo
+módulo con los nombres de pin de la NeptUNO+ directamente es más simple.
+
+Proyecto Quartus creado: `psx_neptuno.qpf/.qsf/.sdc` + `files.qip`, pinout
+tomado literal de `NeoGeo_neptunoplus_dr.qsf`/`tgfx16_neptUNOplus.qsf`.
+
+**Nada de esto ha sido compilado ni probado en hardware todavía.** Es
+código de primera pasada, escrito leyendo las interfaces de cada módulo
+(no hay manera de simular aquí) — se espera iterar sobre errores reales
+de Quartus/hardware. Ver §10 para la lista de puntos que más probablemente
+necesiten ajuste.
 
 ## 1. Hardware objetivo
 
@@ -216,8 +228,41 @@ M/N/C — la herramienta los calcula de forma óptima y verificada.
 ## 9. Archivos de este port
 
 - `neptuno/mist-modules/` — submódulo `mist-devel/mist-modules`.
-- `neptuno/psx_mist.sv` — **WIP**: copia sin modificar de `../PSX.sv` como
-  punto de partida; se irá reescribiendo en el hito 2.
-- `neptuno/psx_neptuno_top.sv` — pendiente (hito 3).
-- `neptuno/psx_neptuno.qsf/.qpf/.sdc` — pendiente (hito 3, con
-  `SDRAM2_*` + `VERILOG_MACRO "MISTER_DUAL_SDRAM=1"`).
+- `neptuno/psx_mist.sv` — módulo `psx_mist_core`, es el `TOP_LEVEL_ENTITY`
+  directamente (ver §0 sobre por qué no hay un wrapper separado).
+- `neptuno/psx_neptuno.qpf/.qsf/.sdc` + `neptuno/files.qip` — proyecto
+  Quartus para `EP4CGX150DF27I7`, pinout de `NeoGeo_neptunoplus_dr.qsf`,
+  `MISTER_DUAL_SDRAM=1` activado.
+- `rtl/pll.v`/`rtl/pll_vid.v` — **pendientes, hay que regenerarlos en
+  Quartus** (ver §7); `psx_mist.sv` ya instancia módulos llamados `pll`
+  (salidas `outclk_0/1/2` = clk_1x/2x/3x) y `pll_vid` (salida `outclk_0`
+  fija = clk_vid) — hay que generarlos con esos nombres exactos y colocar
+  los `.v`/`.qip` resultantes en `rtl/` (o ajustar `files.qip` si se
+  prefiere otra ubicación).
+
+## 10. Puntos a vigilar en la primera compilación
+
+Cosas que decidí con la mejor información disponible pero que **no pude
+verificar sin Quartus/simulación** — candidatas más probables a error en
+la primera compilación real:
+
+- `neptuno/psx_neptuno.sdc` es un punto de partida mínimo (constraints
+  básicas de reloj + false paths). El análisis de timing real de
+  TimeQuest (sobre todo el dominio `clk_3x`/SDRAM a 101.6MHz) hay que
+  revisarlo con el reporte real de Quartus.
+- `sd_buff_addr`/`SD_BLKSZ` en `user_io.v`: usé `SD_BLKSZ(1'b0)` (ancho
+  17 bits) tomando solo `[8:0]` para las tarjetas de memoria, igual que el
+  original — pero no confirmé al 100% que el ancho por defecto sea
+  compatible byte a byte con lo que espera `mist-firmware-rp2040` en el
+  otro extremo del protocolo SPI.
+- El campo `status` de 64 bits y el `CONF_STR` recortado: la sintaxis de
+  posición de bits (`O12`, `O47`, etc., un carácter base-36 por posición)
+  la tomé de `NeoGeo_MiST.sv` — debería ser correcta para este firmware,
+  pero solo se confirma viendo el menú OSD real en la placa.
+- `bk_pending`/`saving_memcard`: quedaron cableados pero no hay
+  indicador visual de "guardando" en el menú recortado — funcionalmente
+  no debería romper nada, es solo una mejora pendiente.
+- `build_id.v`: se genera vía `../sys/build_id.tcl` (reusa el script
+  existente del proyecto MiSTer) — confirmar que el `PRE_FLOW_SCRIPT_FILE`
+  con ruta relativa `../sys/build_id.tcl` resuelve bien desde
+  `neptuno/output_files` al correr `quartus_sh`.

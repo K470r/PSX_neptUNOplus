@@ -1,0 +1,192 @@
+# --------------------------------------------------------------------------
+# PSX for NeptUNO+ (EP4CGX150DF27I7 / Cyclone IV GX)
+#
+# Pin table taken verbatim from delgrom/NeoGeo_FPGA
+# (neptunoplus/NeoGeo_neptunoplus_dr.qsf) and delgrom/TurboGrafx16_FPGA
+# (neptUNOplus/tgfx16_neptUNOplus.qsf), both already proven working on this
+# exact board. See neptuno/PORTING_PLAN.md.
+# --------------------------------------------------------------------------
+
+set_global_assignment -name TOP_LEVEL_ENTITY psx_mist_core
+set_global_assignment -name FAMILY "Cyclone IV GX"
+set_global_assignment -name DEVICE EP4CGX150DF27I7
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
+set_global_assignment -name PRE_FLOW_SCRIPT_FILE "quartus_sh:../sys/build_id.tcl"
+
+set_global_assignment -name CYCLONEIII_CONFIGURATION_SCHEME "PASSIVE SERIAL"
+set_global_assignment -name FORCE_CONFIGURATION_VCCIO ON
+set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
+set_global_assignment -name CRC_ERROR_OPEN_DRAIN OFF
+set_global_assignment -name RESERVE_DATA0_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_DATA1_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_FLASH_NCE_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_DCLK_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name USE_CONFIGURATION_DEVICE OFF
+set_global_assignment -name CYCLONEII_RESERVE_NCEO_AFTER_CONFIGURATION "USE AS REGULAR IO"
+
+set_global_assignment -name GENERATE_RBF_FILE ON
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
+set_global_assignment -name SEED 1
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
+set_global_assignment -name FITTER_EFFORT "STANDARD FIT"
+
+# --- MISTER_DUAL_SDRAM: activate the 2nd physical SDRAM from milestone 1 ---
+# (see PORTING_PLAN.md §4 - the DDR3/DDRAM bus carries live GPU VRAM +
+# memcard + SPU RAM traffic, not just SPU RAM, so this is not optional)
+set_global_assignment -name VERILOG_MACRO "MISTER_DUAL_SDRAM=1"
+
+source files.qip
+
+#============================================================
+# Clocks
+#============================================================
+set_location_assignment PIN_B14 -to CLOCK_50
+
+#============================================================
+# MiST SPI link (RP2040 IO controller)
+#============================================================
+set_location_assignment PIN_AC14 -to SPI_DO
+set_location_assignment PIN_AF12 -to SPI_DI
+set_location_assignment PIN_AF11 -to SPI_SCK
+set_location_assignment PIN_AC10 -to SPI_SS2
+set_location_assignment PIN_AD10 -to SPI_SS3
+set_location_assignment PIN_AE9  -to SPI_SS4
+set_location_assignment PIN_AD14 -to CONF_DATA0
+
+#============================================================
+# VGA (24-bit resistor DAC)
+#============================================================
+set_location_assignment PIN_AE19 -to VGA_R[7]
+set_location_assignment PIN_AD19 -to VGA_R[6]
+set_location_assignment PIN_AC19 -to VGA_R[5]
+set_location_assignment PIN_AF18 -to VGA_R[4]
+set_location_assignment PIN_AE18 -to VGA_R[3]
+set_location_assignment PIN_AC18 -to VGA_R[2]
+set_location_assignment PIN_AD16 -to VGA_R[1]
+set_location_assignment PIN_AE15 -to VGA_R[0]
+set_location_assignment PIN_AF24 -to VGA_B[7]
+set_location_assignment PIN_AC21 -to VGA_B[6]
+set_location_assignment PIN_AE23 -to VGA_B[5]
+set_location_assignment PIN_AE22 -to VGA_B[4]
+set_location_assignment PIN_AD20 -to VGA_B[3]
+set_location_assignment PIN_AF20 -to VGA_B[2]
+set_location_assignment PIN_AF15 -to VGA_B[1]
+set_location_assignment PIN_AC16 -to VGA_B[0]
+set_location_assignment PIN_AD21 -to VGA_G[7]
+set_location_assignment PIN_AF23 -to VGA_G[6]
+set_location_assignment PIN_AF22 -to VGA_G[5]
+set_location_assignment PIN_AE21 -to VGA_G[4]
+set_location_assignment PIN_AF21 -to VGA_G[3]
+set_location_assignment PIN_AF19 -to VGA_G[2]
+set_location_assignment PIN_AD17 -to VGA_G[1]
+set_location_assignment PIN_AF16 -to VGA_G[0]
+set_location_assignment PIN_AD18 -to VGA_VS
+set_location_assignment PIN_AE17 -to VGA_HS
+
+#============================================================
+# Audio (sigma-delta analog out, see PORTING_PLAN.md - I2S/PCM5121 deferred)
+#============================================================
+set_location_assignment PIN_AF17 -to AUDIO_L
+set_location_assignment PIN_AC17 -to AUDIO_R
+
+#============================================================
+# Main SDRAM (onboard, 64MB)
+#============================================================
+set_location_assignment PIN_L25 -to SDRAM_A[0]
+set_location_assignment PIN_L26 -to SDRAM_A[1]
+set_location_assignment PIN_M25 -to SDRAM_A[2]
+set_location_assignment PIN_M26 -to SDRAM_A[3]
+set_location_assignment PIN_N22 -to SDRAM_A[4]
+set_location_assignment PIN_N23 -to SDRAM_A[5]
+set_location_assignment PIN_N24 -to SDRAM_A[6]
+set_location_assignment PIN_M22 -to SDRAM_A[7]
+set_location_assignment PIN_M24 -to SDRAM_A[8]
+set_location_assignment PIN_L23 -to SDRAM_A[9]
+set_location_assignment PIN_K26 -to SDRAM_A[10]
+set_location_assignment PIN_L24 -to SDRAM_A[11]
+set_location_assignment PIN_K23 -to SDRAM_A[12]
+set_location_assignment PIN_B25 -to SDRAM_DQ[0]
+set_location_assignment PIN_B26 -to SDRAM_DQ[1]
+set_location_assignment PIN_C25 -to SDRAM_DQ[2]
+set_location_assignment PIN_C26 -to SDRAM_DQ[3]
+set_location_assignment PIN_D25 -to SDRAM_DQ[4]
+set_location_assignment PIN_D26 -to SDRAM_DQ[5]
+set_location_assignment PIN_E25 -to SDRAM_DQ[6]
+set_location_assignment PIN_E26 -to SDRAM_DQ[7]
+set_location_assignment PIN_H23 -to SDRAM_DQ[8]
+set_location_assignment PIN_G24 -to SDRAM_DQ[9]
+set_location_assignment PIN_G22 -to SDRAM_DQ[10]
+set_location_assignment PIN_F24 -to SDRAM_DQ[11]
+set_location_assignment PIN_F23 -to SDRAM_DQ[12]
+set_location_assignment PIN_E24 -to SDRAM_DQ[13]
+set_location_assignment PIN_D24 -to SDRAM_DQ[14]
+set_location_assignment PIN_C24 -to SDRAM_DQ[15]
+set_location_assignment PIN_J25 -to SDRAM_BA[0]
+set_location_assignment PIN_J26 -to SDRAM_BA[1]
+set_location_assignment PIN_H24 -to SDRAM_DQMH
+set_location_assignment PIN_F26 -to SDRAM_DQML
+set_location_assignment PIN_H25 -to SDRAM_nRAS
+set_location_assignment PIN_G26 -to SDRAM_nCAS
+set_location_assignment PIN_G25 -to SDRAM_nWE
+set_location_assignment PIN_H26 -to SDRAM_nCS
+set_location_assignment PIN_K24 -to SDRAM_CKE
+set_location_assignment PIN_E22 -to SDRAM_CLK
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_*
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SDRAM_*
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_*
+set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to SDRAM_DQ[*]
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[*]
+
+#============================================================
+# Expansion SDRAM (2nd chip, 64MB) - VRAM/memcard/SPU RAM (§4)
+#============================================================
+set_location_assignment PIN_B10 -to SDRAM2_A[0]
+set_location_assignment PIN_A11 -to SDRAM2_A[1]
+set_location_assignment PIN_B11 -to SDRAM2_A[2]
+set_location_assignment PIN_A13 -to SDRAM2_A[3]
+set_location_assignment PIN_B21 -to SDRAM2_A[4]
+set_location_assignment PIN_B22 -to SDRAM2_A[5]
+set_location_assignment PIN_B23 -to SDRAM2_A[6]
+set_location_assignment PIN_A23 -to SDRAM2_A[7]
+set_location_assignment PIN_A16 -to SDRAM2_A[8]
+set_location_assignment PIN_C16 -to SDRAM2_A[9]
+set_location_assignment PIN_A10 -to SDRAM2_A[10]
+set_location_assignment PIN_A21 -to SDRAM2_A[11]
+set_location_assignment PIN_C12 -to SDRAM2_A[12]
+set_location_assignment PIN_A5  -to SDRAM2_DQ[0]
+set_location_assignment PIN_B5  -to SDRAM2_DQ[1]
+set_location_assignment PIN_B6  -to SDRAM2_DQ[2]
+set_location_assignment PIN_B7  -to SDRAM2_DQ[3]
+set_location_assignment PIN_A3  -to SDRAM2_DQ[4]
+set_location_assignment PIN_E2  -to SDRAM2_DQ[5]
+set_location_assignment PIN_B2  -to SDRAM2_DQ[6]
+set_location_assignment PIN_E1  -to SDRAM2_DQ[7]
+set_location_assignment PIN_A15 -to SDRAM2_DQ[8]
+set_location_assignment PIN_C15 -to SDRAM2_DQ[9]
+set_location_assignment PIN_B15 -to SDRAM2_DQ[10]
+set_location_assignment PIN_B13 -to SDRAM2_DQ[11]
+set_location_assignment PIN_A18 -to SDRAM2_DQ[12]
+set_location_assignment PIN_C19 -to SDRAM2_DQ[13]
+set_location_assignment PIN_B18 -to SDRAM2_DQ[14]
+set_location_assignment PIN_A17 -to SDRAM2_DQ[15]
+set_location_assignment PIN_A9  -to SDRAM2_BA[0]
+set_location_assignment PIN_C10 -to SDRAM2_BA[1]
+set_location_assignment PIN_C17 -to SDRAM2_DQMH
+set_location_assignment PIN_C14 -to SDRAM2_DQML
+set_location_assignment PIN_A8  -to SDRAM2_nRAS
+set_location_assignment PIN_A7  -to SDRAM2_nCAS
+set_location_assignment PIN_A6  -to SDRAM2_nWE
+set_location_assignment PIN_B9  -to SDRAM2_nCS
+set_location_assignment PIN_A20 -to SDRAM2_CKE
+set_location_assignment PIN_C13 -to SDRAM2_CLK
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM2_*
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SDRAM2_*
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM2_*
+set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to SDRAM2_DQ[*]
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM2_DQ[*]
+
+set_global_assignment -name SDC_FILE psx_neptuno.sdc
