@@ -1,6 +1,6 @@
 Esto es un port en desarrollo para la placa neptUNO+, aún no hay nada funcional aquí
 
-# [Playstation](https://en.wikipedia.org/wiki/PlayStation_(console)) for [MiSTer Platform](https://github.com/MiSTer-devel/Main_MiSTer/wiki)
+# [Playstation](https://en.wikipedia.org/wiki/PlayStation_(console)) for [neptUNO+ Platform](https://github.com/neptunoplus)
 
 ## Hardware Requirements
 SDRAM of any size is required.
