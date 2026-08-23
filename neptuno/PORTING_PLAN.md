@@ -65,7 +65,10 @@ Y `psx.c` del firmware habla ese mismo protocolo genérico
 + `drive_sel` interno — hay que muxear `sd_lba1/2/3` hacia ese bus único
 según qué bit de `sd_rd`/`sd_wr` esté activo (mux combinacional trivial).
 
-## 4. SDRAM — decisión de Fase 1: una sola SDRAM física
+## 4. SDRAM — CORRECCIÓN: hace falta la 2ª SDRAM desde el hito 1
+
+**(Esta sección reemplaza una decisión anterior que era incorrecta — se
+deja constancia del error más abajo para que quede claro por qué cambió.)**
 
 `rtl/sdram.sv` (el propio controlador del core PSX) **ya es un controlador
 "bare metal" para SDR SDRAM física genérica** (pines `SDRAM_A/DQ/BA/nCS/
@@ -75,22 +78,40 @@ controladores custom que NeoGeo (`sdram_2w_cl2`) y PCEngine (`sdram_amr`)
 escribieron para esta misma placa. Se reutiliza casi tal cual, retimando
 para los parámetros reales de la SDRAM de la NeptUNO+.
 
-El core también usa un segundo bus, `DDRAM_*` (estilo Avalon burst,
-normalmente el puente a la DDR3 del HPS en MiSTer), **exclusivamente para
-la RAM del SPU** (512KB) — ver opción de menú "SPU RAM select: DDR3,
-SDRAM2". En modo `MISTER_DUAL_SDRAM` este bus se sustituye por una 2ª
-SDRAM física completa.
+El core también usa un segundo bus, `DDRAM_*` (estilo Avalon burst, el
+puente a la DDR3 del HPS en MiSTer). Revisando `rtl/psx_top.vhd` a fondo
+(el mux de 3 vías sobre `ddr3_*`: `ddr3_savestate` / `arbiter_active` /
+`vram_*` como rama por defecto) se confirma que este bus **no es solo para
+la RAM del SPU** como sugiere la etiqueta del menú ("SPU RAM select: DDR3,
+SDRAM2") — también carga tráfico de **VRAM del GPU** (rama `vram_*`,
+por defecto) y de **memoria card** (`memDDR3card1/2_ADDR` dentro del
+arbiter), además del SPU RAM. Es decir: es el bus de memoria de vídeo en
+tiempo real del GPU, no un canal secundario opcional.
 
-**Decisión Fase 1:** no activar la 2ª SDRAM todavía. En su lugar, escribir
-un pequeño puente `neptuno/ddram_bram.sv` que emula la interfaz `DDRAM_*`
-usando RAM interna de la FPGA (M9K) para los 512KB de SPU RAM. Esto evita
-necesitar un 2º PLL/chip para el primer arranque. EP4CGX150 tiene ~830KB de
-memoria embebida total — 512KB para SPU RAM es ajustado pero factible si el
-resto de buffers internos del core (cache, líneas de vídeo) no compiten por
-el mismo bloque (no lo hacen: usan el canal `ch1/cache_*` de la SDRAM
-principal). Si no cierra en área/timing, la alternativa ya probada
-(`NeoGeo_neptunoplus_dr` + `pll2_mist`) queda como plan B para activar la
-2ª SDRAM real.
+Esto descarta la idea original de emularlo con un puente a RAM interna de
+la FPGA (1MB de VRAM + memoria card + SPU no caben ni de lejos en los
+~830KB de memoria embebida del EP4CGX150, y aunque cupieran, el ancho de
+banda que necesita el GPU en tiempo real no es viable así).
+
+**Decisión correcta:** activar `MISTER_DUAL_SDRAM` desde el hito 1, tal
+cual ya existe en este mismo repo como variante `PSX_DualSDRAM.qsf`/`.qpf`
+(ese `ifdef` ya instancia un segundo `sdram sdram2(...)` completo sobre
+`SDRAM2_*`, usando el mismo `rtl/sdram.sv` genérico) — encaja perfecto con
+el hardware real de la NeptUNO+ (64MB onboard + 64MB de expansión, como
+ya me indicó el usuario). Ventaja adicional confirmada leyendo
+`rtl/sdram.sv`: el reloj `SDRAM_CLK` de cada instancia lo genera el propio
+módulo (registro de salida sobre `clk`/`clk_base` ya existentes) — **no
+hace falta un segundo PLL**, a diferencia del patrón de NeoGeo
+(`pll2_mist`) que sí usa un PLL separado por razones propias de su placa/
+reloj de referencia. Pines de `SDRAM2_*` se toman literalmente del
+`NeoGeo_neptunoplus_dr.qsf` (ya confirmados contra el pinout físico real).
+
+No se necesita ningún puente/adaptador nuevo: basta con (a) compilar con
+`MISTER_DUAL_SDRAM=1` definido, (b) cablear los pines `SDRAM2_*` en el
+`.qsf`, y (c) verificar en el body de `psx_mist.sv` que `SDRAM2_EN` queda
+en 1 (actualmente depende de `status[44]`-derivado en el original; en
+Fase 1 lo fijamos a constante 1 ya que no hay opción de menú para elegir
+"DDR3 vs SDRAM2" — solo existe SDRAM2 en este hardware).
 
 ## 5. Restricción real y permanente: `status` de 64 bits
 
@@ -129,8 +150,16 @@ fases posteriores.
 - **Framebuffer de depuración HDMI** (`FB_*`, `MISTER_FB`): específico de
   HDMI/ADV7513, no aplica a salida VGA. Eliminado.
 - **Gamma correction vía OSD**: dependía de `gamma_bus` desde `hps_io`.
-  Simplificado a paso directo (`video_gamma = video_aspect`) hasta que se
-  decida si vale la pena re-implementarlo vía `user_io`.
+  Simplificado a paso directo hasta que se decida si vale la pena
+  re-implementarlo vía `user_io`.
+- **`video_freak` + tablas `aspect_ratio_lut_*` + recálculo de hblank
+  fijo**: todo esto alimenta el escalador HDMI (`ascal`) de MiSTer
+  (metadatos ARX/ARY para VGA_SCALER), que no existe en NeptUNO+ (DAC VGA
+  directo). Se elimina del fork; la salida de vídeo pasa directo del core
+  (`hs/vs/hbl/vbl/r/g/b`) al `osd.v` de `mist-modules` (que se puede
+  insertar directamente entre el core y los pines VGA físicos, ya que el
+  GPU de PSX ya genera timing VGA correcto por sí mismo — no hace falta
+  `mist_video.v`/scandoubler) y de ahí a los pines VGA.
 - **CHD**: `mist-firmware` no soporta CHD (solo CUE+BIN e ISO plano) — no
   se persigue soporte CHD en este port.
 - **CD-ROM (CUE+BIN)**: no es Fase 1, pero gracias a §3 y a que `psx.c` ya
@@ -168,10 +197,13 @@ M/N/C — la herramienta los calcula de forma óptima y verificada.
 1. **[EN CURSO] Arquitectura + andamiaje** — este documento, submódulo
    `mist-modules`, pinout confirmado.
 2. **Reescritura de `neptuno/psx_mist.sv`** (fork de `PSX.sv`): swap
-   `hps_io`→`user_io`+`data_io`, mux de `sd_lba`, `ddram_bram.sv`, CONF_STR
-   recortado a 64 bits, PLL fijo sin reconfig, sin SNAC/savestates/gamma/FB.
+   `hps_io`→`user_io`+`data_io`, mux de `sd_lba`, `MISTER_DUAL_SDRAM=1`
+   activado (2ª SDRAM real, ver §4 — sin puente nuevo, ya existe en el
+   core), CONF_STR recortado a 64 bits, PLL fijo sin reconfig, sin
+   SNAC/savestates/gamma/video_freak/FB.
 3. **Top-level `psx_neptuno_top.sv`** + `.qsf/.qpf/.sdc` para
-   `EP4CGX150DF27I7` (pinout de §1).
+   `EP4CGX150DF27I7` (pinout de §1, incluyendo `SDRAM2_*` de
+   `NeoGeo_neptunoplus_dr.qsf`).
 4. **Regenerar PLLs en Quartus** (usuario, ver §7) y primera compilación.
 5. **Primer arranque en hardware real**: BIOS + homebrew `.exe`, sin CD.
    Iterar sobre errores de compilación/timing/vídeo que reporte el usuario.
@@ -179,8 +211,7 @@ M/N/C — la herramienta los calcula de forma óptima y verificada.
    handshake `CORE_TYPE_8BIT`/`FEAT_PSX` desde el gateware.
 7. **CD-ROM (CUE+BIN)** usando el mecanismo genérico ya confirmado (§3).
 8. Reincorporar funcionalidades diferidas (§6) según prioridad: savestates,
-   SNAC, menú OSD completo, PAL/NTSC dinámico, posible 2ª SDRAM para ancho
-   de banda extra en CD a velocidades altas.
+   SNAC, menú OSD completo, PAL/NTSC dinámico.
 
 ## 9. Archivos de este port
 
@@ -188,5 +219,5 @@ M/N/C — la herramienta los calcula de forma óptima y verificada.
 - `neptuno/psx_mist.sv` — **WIP**: copia sin modificar de `../PSX.sv` como
   punto de partida; se irá reescribiendo en el hito 2.
 - `neptuno/psx_neptuno_top.sv` — pendiente (hito 3).
-- `neptuno/ddram_bram.sv` — pendiente (hito 2).
-- `neptuno/psx_neptuno.qsf/.qpf/.sdc` — pendiente (hito 3).
+- `neptuno/psx_neptuno.qsf/.qpf/.sdc` — pendiente (hito 3, con
+  `SDRAM2_*` + `VERILOG_MACRO "MISTER_DUAL_SDRAM=1"`).
