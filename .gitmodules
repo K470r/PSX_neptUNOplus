@@ -1,3 +1,3 @@
-[submodule "neptuno/mist-modules"]
-	path = neptuno/mist-modules
+[submodule "neptunoplus/mist-modules"]
+	path = neptunoplus/mist-modules
 	url = https://github.com/mist-devel/mist-modules.git

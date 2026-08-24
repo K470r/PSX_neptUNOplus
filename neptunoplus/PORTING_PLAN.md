@@ -5,16 +5,26 @@ que avanza el trabajo. Última actualización: ver historial de git.
 
 ## 0. Estado
 
-`neptuno/psx_mist.sv` reescrito (primer borrador) reemplazando `hps_io` por
+`neptunoplus/psx_mist.sv` reescrito (primer borrador) reemplazando `hps_io` por
 `user_io`/`data_io`/`osd` de `mist-modules`, con `MISTER_DUAL_SDRAM`
 activado permanentemente. Es también el `TOP_LEVEL_ENTITY` directamente
 (módulo `psx_mist_core`) — se decidió no crear un wrapper "thin" separado
-(`psx_neptuno_top.sv`) porque, a diferencia de NeoGeo/PCEngine, este port
-no comparte el mismo core entre varias placas MiST distintas; un solo
-módulo con los nombres de pin de la NeptUNO+ directamente es más simple.
+porque, a diferencia de NeoGeo/PCEngine, este port no comparte el mismo
+core entre varias placas MiST distintas; un solo módulo con los nombres
+de pin de la NeptUNO+ directamente es más simple.
 
-Proyecto Quartus creado: `psx_neptuno.qpf/.qsf/.sdc` + `files.qip`, pinout
-tomado literal de `NeoGeo_neptunoplus_dr.qsf`/`tgfx16_neptUNOplus.qsf`.
+Proyecto Quartus creado: `PSX_neptunoplus.qpf/.qsf/.sdc` + `files.qip`,
+pinout tomado literal de `NeoGeo_neptunoplus_dr.qsf`/
+`tgfx16_neptUNOplus.qsf`.
+
+Regla de organización de carpetas (a partir de ahora): lo que es común
+entre MiSTer y NeptUNO+ se queda donde ya estaba en el repo de MiSTer
+(`rtl/`, `sys/`, etc., sin tocar); lo que se crea o se modifica
+específicamente para NeptUNO+ vive dentro de `neptunoplus/`. Esto incluye
+cosas que "se parecen" a un archivo de MiSTer pero cuyo contenido difiere
+por ser específico del dispositivo (ver el caso de `pll.v`/`pll2.v` en
+§7/§9 — mismo nombre de módulo, pero NO es el mismo archivo, así que no
+puede vivir en `rtl/` o pisaría la versión de MiSTer para Cyclone V).
 
 **Nada de esto ha sido compilado ni probado en hardware todavía.** Es
 código de primera pasada, escrito leyendo las interfaces de cada módulo
@@ -42,7 +52,7 @@ Reutilizamos ese pin table literal.
 
 ## 2. Repos de referencia usados
 
-- `mist-devel/mist-modules` (submódulo en `neptuno/mist-modules`):
+- `mist-devel/mist-modules` (submódulo en `neptunoplus/mist-modules`):
   `user_io.v`, `data_io.v`, `osd.v`, `mist.vhd`, `mist_video.v`,
   `scandoubler`, `sd_card.v` (no instanciado por NeoGeo/PCEngine — usan el
   mecanismo genérico de `user_io.v` directamente).
@@ -195,7 +205,11 @@ fases posteriores.
 
 Dos módulos PLL, regenerados para Cyclone IV GX / `EP4CGX150DF27I7` a
 partir de los originales `rtl/pll.v`/`rtl/pll2.v` (IP `altera_pll`,
-Cyclone V):
+Cyclone V). **Importante:** aunque se llaman igual (`pll`/`pll2`), estos
+NO son los mismos archivos que los de MiSTer — hay que generarlos y
+guardarlos dentro de `neptunoplus/` (como `neptunoplus/pll.v`/`.qip` y
+`neptunoplus/pll2.v`/`.qip`), no sobrescribir `rtl/pll.v`/`rtl/pll2.v`,
+porque esos siguen siendo los que usa el build de MiSTer para Cyclone V.
 
 | Módulo     | Señal     | Frecuencia     | Uso                              |
 |------------|-----------|---------------:|-----------------------------------|
@@ -221,23 +235,26 @@ dispositivo físico** (`EP4CGX150DF27I7`) — buena señal de que el timing es
 alcanzable en este FPGA con un diseño de complejidad comparable.
 
 **Acción pendiente que requiere Quartus (GUI, no lo puedo generar yo de
-forma fiable sin la herramienta):** regenerar `rtl/pll.v` y `rtl/pll2.v`
-como IP `altpll` (no `altera_pll`) para `Cyclone IV GX` / dispositivo
-`EP4CGX150DF27I7`, con referencia `CLOCK_50` (50MHz) y las frecuencias de
-salida de la tabla de arriba. Usar el IP Catalog de Quartus
+forma fiable sin la herramienta):** generar, **dentro de la carpeta
+`neptunoplus/`**, dos IP `altpll` (no `altera_pll`) llamados `pll` y
+`pll2` para `Cyclone IV GX` / dispositivo `EP4CGX150DF27I7`, con
+referencia `CLOCK_50` (50MHz) y las frecuencias de salida de la tabla de
+arriba (`pll2` en modo reconfigurable). Usar el IP Catalog de Quartus
 (`ALTPLL` megafunction) en vez de intentar derivar a mano los enteros
 M/N/C — la herramienta los calcula de forma óptima y verificada.
+`files.qip` ya espera encontrarlos como `neptunoplus/pll.qip` y
+`neptunoplus/pll2.qip`.
 
 ## 8. Plan de hitos
 
 1. **[EN CURSO] Arquitectura + andamiaje** — este documento, submódulo
    `mist-modules`, pinout confirmado.
-2. **Reescritura de `neptuno/psx_mist.sv`** (fork de `PSX.sv`): swap
+2. **Reescritura de `neptunoplus/psx_mist.sv`** (fork de `PSX.sv`): swap
    `hps_io`→`user_io`+`data_io`, mux de `sd_lba`, `MISTER_DUAL_SDRAM=1`
    activado (2ª SDRAM real, ver §4 — sin puente nuevo, ya existe en el
    core), CONF_STR recortado a 64 bits, PLL fijo sin reconfig, sin
    SNAC/savestates/gamma/video_freak/FB.
-3. **Top-level `psx_neptuno_top.sv`** + `.qsf/.qpf/.sdc` para
+3. **Proyecto Quartus** `PSX_neptunoplus.qsf/.qpf/.sdc` para
    `EP4CGX150DF27I7` (pinout de §1, incluyendo `SDRAM2_*` de
    `NeoGeo_neptunoplus_dr.qsf`).
 4. **Regenerar PLLs en Quartus** (usuario, ver §7) y primera compilación.
@@ -251,18 +268,20 @@ M/N/C — la herramienta los calcula de forma óptima y verificada.
 
 ## 9. Archivos de este port
 
-- `neptuno/mist-modules/` — submódulo `mist-devel/mist-modules`.
-- `neptuno/psx_mist.sv` — módulo `psx_mist_core`, es el `TOP_LEVEL_ENTITY`
+- `neptunoplus/mist-modules/` — submódulo `mist-devel/mist-modules`.
+- `neptunoplus/psx_mist.sv` — módulo `psx_mist_core`, es el `TOP_LEVEL_ENTITY`
   directamente (ver §0 sobre por qué no hay un wrapper separado).
-- `neptuno/psx_neptuno.qpf/.qsf/.sdc` + `neptuno/files.qip` — proyecto
+- `neptunoplus/PSX_neptunoplus.qpf/.qsf/.sdc` + `neptunoplus/files.qip` — proyecto
   Quartus para `EP4CGX150DF27I7`, pinout de `NeoGeo_neptunoplus_dr.qsf`,
   `MISTER_DUAL_SDRAM=1` activado.
-- `rtl/pll.v`/`rtl/pll2.v` — **pendientes, hay que regenerarlos en
-  Quartus** (ver §7); `psx_mist.sv` ya instancia módulos llamados `pll`
-  (salidas `outclk_0/1/2` = clk_1x/2x/3x) y `pll2` (salida `outclk_0`
-  fija = clk_vid) — hay que generarlos con esos nombres exactos y colocar
-  los `.v`/`.qip` resultantes en `rtl/` (o ajustar `files.qip` si se
-  prefiere otra ubicación).
+- `neptunoplus/pll.v`/`.qip` y `neptunoplus/pll2.v`/`.qip` — **pendientes,
+  hay que regenerarlos en Quartus** (ver §7); `psx_mist.sv` ya instancia
+  módulos llamados `pll` (salidas `outclk_0/1/2` = clk_1x/2x/3x) y `pll2`
+  (salida `outclk_0` = clk_vid, modo reconfigurable) — hay que generarlos
+  con esos nombres exactos, **dentro de `neptunoplus/`** (no en `rtl/`,
+  que es donde viven los originales de MiSTer para Cyclone V — ver la
+  nota en §7 sobre por qué no se pueden mezclar). `files.qip` ya los
+  referencia como `pll.qip`/`pll2.qip` (rutas relativas a esta carpeta).
 
 ## 10. Puntos a vigilar en la primera compilación
 
@@ -270,7 +289,7 @@ Cosas que decidí con la mejor información disponible pero que **no pude
 verificar sin Quartus/simulación** — candidatas más probables a error en
 la primera compilación real:
 
-- `neptuno/psx_neptuno.sdc` es un punto de partida mínimo (constraints
+- `neptunoplus/PSX_neptunoplus.sdc` es un punto de partida mínimo (constraints
   básicas de reloj + false paths). El análisis de timing real de
   TimeQuest (sobre todo el dominio `clk_3x`/SDRAM a 101.6MHz) hay que
   revisarlo con el reporte real de Quartus.
@@ -289,4 +308,4 @@ la primera compilación real:
 - `build_id.v`: se genera vía `../sys/build_id.tcl` (reusa el script
   existente del proyecto MiSTer) — confirmar que el `PRE_FLOW_SCRIPT_FILE`
   con ruta relativa `../sys/build_id.tcl` resuelve bien desde
-  `neptuno/output_files` al correr `quartus_sh`.
+  `neptunoplus/output_files` al correr `quartus_sh`.

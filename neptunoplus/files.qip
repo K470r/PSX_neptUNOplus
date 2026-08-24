@@ -1,0 +1,17 @@
+set_global_assignment -name QIP_FILE ../rtl/psx.qip
+set_global_assignment -name QIP_FILE ../rtl/mem.qip
+# pll.qip / pll2.qip: NOT the MiSTer originals from rtl/ - those target
+# Cyclone V and must stay untouched so the MiSTer build keeps working.
+# These are regenerated for Cyclone IV GX (EP4CGX150DF27I7), same module
+# names (pll / pll2) as upstream, but they're NeptUNO+-specific content,
+# so per our rule ("shared with MiSTer stays where MiSTer had it, what we
+# create/modify for NeptUNO+ lives in neptunoplus/") they belong here,
+# generated directly into this folder. See PORTING_PLAN.md §7 - pll2 must
+# be generated in reconfigurable mode.
+set_global_assignment -name QIP_FILE pll.qip
+set_global_assignment -name QIP_FILE pll2.qip
+set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/sdram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/ddram.sv
+set_global_assignment -name VERILOG_FILE build_id.v
+set_global_assignment -name SYSTEMVERILOG_FILE psx_mist.sv
+set_global_assignment -name QIP_FILE mist-modules/mist.qip

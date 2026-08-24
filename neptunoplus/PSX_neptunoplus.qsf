@@ -4,7 +4,7 @@
 # Pin table taken verbatim from delgrom/NeoGeo_FPGA
 # (neptunoplus/NeoGeo_neptunoplus_dr.qsf) and delgrom/TurboGrafx16_FPGA
 # (neptUNOplus/tgfx16_neptUNOplus.qsf), both already proven working on this
-# exact board. See neptuno/PORTING_PLAN.md.
+# exact board. See neptunoplus/PORTING_PLAN.md.
 # --------------------------------------------------------------------------
 
 set_global_assignment -name TOP_LEVEL_ENTITY psx_mist_core
@@ -189,4 +189,4 @@ set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM2_*
 set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to SDRAM2_DQ[*]
 set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM2_DQ[*]
 
-set_global_assignment -name SDC_FILE psx_neptuno.sdc
+set_global_assignment -name SDC_FILE PSX_neptunoplus.sdc

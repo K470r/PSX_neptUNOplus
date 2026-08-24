@@ -2,7 +2,7 @@
 //  PSX for NeptUNO+ (EP4CGX150 + RP2040/mist-firmware-rp2040)
 //
 //  Phase 1 port: forked from ../PSX.sv (MiSTer_PSX, Robert Peip / Sorgelig).
-//  See neptuno/PORTING_PLAN.md for the full rationale of every change here.
+//  See neptunoplus/PORTING_PLAN.md for the full rationale of every change here.
 //
 //  Summary of what changed vs. the MiSTer original:
 //   - hps_io  -> mist-modules' user_io + data_io (classic MiST SPI protocol,
