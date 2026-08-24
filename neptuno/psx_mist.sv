@@ -79,19 +79,26 @@ module psx_mist_core
 
 ///////////////////////////  CLOCK/RESET  ///////////////////////////////////
 
-// Fixed-frequency PLLs regenerated for Cyclone IV GX / EP4CGX150DF27I7.
-// See PORTING_PLAN.md §7 for the exact target frequencies (33.8688 /
-// 67.7376 / 101.6064 / 53.693175 MHz from a 50MHz CLOCK_50 reference).
-// The original MiSTer design's dynamic NTSC/PAL/fast-forward pixel-clock
-// reconfig (pll_cfg, Avalon-MM reconfig of an `altera_pll`) is Cyclone
-// V/10/Arria-only IP and has no direct equivalent on Cyclone IV GX,  so
-// clk_vid is fixed here (NTSC timing) until a later phase revisits this
-// (candidates: altpll_reconfig scan-chain, or an NCO-based approach).
+// Same two-PLL split as the original MiSTer design (rtl/pll.v / rtl/
+// pll2.v), regenerated for Cyclone IV GX / EP4CGX150DF27I7 - same module
+// names too (pll / pll2), just retargeted, rather than renamed. See
+// PORTING_PLAN.md §7 for the exact target frequencies (33.8688 / 67.7376
+// / 101.6064 / 53.693175 MHz from a 50MHz CLOCK_50 reference).
+//
+// pll2 is kept separate from pll on purpose: the original's dynamic
+// NTSC/PAL/fast-forward pixel-clock reconfig (pll_cfg, Avalon-MM reconfig
+// of an `altera_pll`) is Cyclone V/10/Arria-only IP and has no direct
+// equivalent here, so clk_vid is fixed (NTSC) for now - but pll2 should
+// still be generated in the wizard's *reconfigurable* mode (exposing the
+// classic ALTPLL_RECONFIG scan-chain ports), since NeoGeo_FPGA's own
+// neptunoplus/pll2_mist.v confirms that mechanism is available on this
+// device, and a later phase will drive it to switch NTSC/PAL/240p/480i
+// without touching the CPU/SDRAM clocks in pll.
 wire pll_locked;
 wire clk_1x;   // 33.8688 MHz - system/CPU clock
 wire clk_2x;   // 67.7376 MHz
 wire clk_3x;   // 101.6064 MHz - main SDRAM domain
-wire clk_vid;  // 53.693175 MHz - pixel clock (NTSC, fixed)
+wire clk_vid;  // 53.693175 MHz - pixel clock (NTSC, fixed for now)
 
 pll pll
 (
@@ -103,7 +110,7 @@ pll pll
 	.locked(pll_locked)
 );
 
-pll_vid pll_vid
+pll2 pll2
 (
 	.refclk(CLOCK_50),
 	.rst(1'b0),

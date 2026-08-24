@@ -153,7 +153,7 @@ fases posteriores.
   mecanismo original (`pll_cfg`, reconfig Avalon-MM de la IP `altera_pll`)
   es exclusivo de Cyclone V/10/Arria y no existe en Cyclone IV GX. Fase 1
   usa un `clk_vid` fijo (NTSC, 53.693175MHz nominal) generado por un PLL
-  **separado** (`pll_vid.v`, distinto de `pll.v` que da clk_1x/2x/3x) —
+  **separado** (`pll2.v`, distinto de `pll.v` que da clk_1x/2x/3x) —
   esto es intencional y se queda así aunque de momento sea fijo: así el
   futuro reconfig de vídeo no toca los relojes de CPU/SDRAM.
   **Confirmado que el mecanismo de reconfig SÍ existe en este dispositivo**:
@@ -164,7 +164,7 @@ fases posteriores.
   `PORT_UNUSED` porque NeoGeo no los necesita) — es la megafunción
   `ALTPLL_RECONFIG` clásica (el mismo truco que ya usaban los cores de
   MiST desde la época de Cyclone III). **Acción para cuando se genere
-  `pll_vid.v` en Quartus: elegir el modo "reconfigurable" del wizard (no
+  `pll2.v` en Quartus: elegir el modo "reconfigurable" del wizard (no
   el modo fijo/simple)**, para no tener que rehacer el PLL cuando se
   implemente el cambio dinámico NTSC/PAL/240p/480i en una fase posterior
   (falta escribir el bloque de control que maneje `scanclk`/`scandata`/
@@ -202,14 +202,14 @@ Cyclone V):
 | `pll.v`     | `clk_1x`  | 33.8688 MHz    | reloj de sistema/CPU (33.8688=44100×768) |
 | `pll.v`     | `clk_2x`  | 67.7376 MHz    | 2× (ya no alimenta DDRAM_CLK, ese bus se eliminó — ver §4) |
 | `pll.v`     | `clk_3x`  | 101.6064 MHz   | dominio de la SDRAM principal y expansión |
-| `pll_vid.v` | `clk_vid` | 53.693175 MHz  | reloj de píxel (NTSC, fijo en Fase 1) |
+| `pll2.v` | `clk_vid` | 53.693175 MHz  | reloj de píxel (NTSC, fijo en Fase 1) |
 
-`pll_vid.v` se mantiene como **PLL separado** (no fusionado con `pll.v`)
+`pll2.v` se mantiene como **PLL separado** (no fusionado con `pll.v`)
 a propósito: en una fase posterior necesitamos reconfigurar el reloj de
 vídeo en tiempo real (NTSC/PAL, 240p/480i) sin tocar los relojes de CPU/
 SDRAM — ver §6 para la confirmación de que el mecanismo de reconfig
 (`ALTPLL_RECONFIG` por scan-chain) sí existe en este dispositivo. Al
-generar `pll_vid.v` en el IP Catalog, usar el modo **reconfigurable**, no
+generar `pll2.v` en el IP Catalog, usar el modo **reconfigurable**, no
 el modo fijo/simple.
 
 Ambos PLLs derivados de `CLOCK_50` (50MHz, pin `B14` confirmado en el
@@ -257,9 +257,9 @@ M/N/C — la herramienta los calcula de forma óptima y verificada.
 - `neptuno/psx_neptuno.qpf/.qsf/.sdc` + `neptuno/files.qip` — proyecto
   Quartus para `EP4CGX150DF27I7`, pinout de `NeoGeo_neptunoplus_dr.qsf`,
   `MISTER_DUAL_SDRAM=1` activado.
-- `rtl/pll.v`/`rtl/pll_vid.v` — **pendientes, hay que regenerarlos en
+- `rtl/pll.v`/`rtl/pll2.v` — **pendientes, hay que regenerarlos en
   Quartus** (ver §7); `psx_mist.sv` ya instancia módulos llamados `pll`
-  (salidas `outclk_0/1/2` = clk_1x/2x/3x) y `pll_vid` (salida `outclk_0`
+  (salidas `outclk_0/1/2` = clk_1x/2x/3x) y `pll2` (salida `outclk_0`
   fija = clk_vid) — hay que generarlos con esos nombres exactos y colocar
   los `.v`/`.qip` resultantes en `rtl/` (o ajustar `files.qip` si se
   prefiere otra ubicación).

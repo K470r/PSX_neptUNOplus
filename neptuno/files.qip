@@ -1,5 +1,10 @@
 set_global_assignment -name QIP_FILE ../rtl/psx.qip
 set_global_assignment -name QIP_FILE ../rtl/mem.qip
+# pll.qip / pll2.qip: regenerated for Cyclone IV GX (EP4CGX150DF27I7),
+# same module names as the MiSTer original (pll / pll2) - see
+# PORTING_PLAN.md §7. pll2 must be generated in reconfigurable mode.
+set_global_assignment -name QIP_FILE ../rtl/pll.qip
+set_global_assignment -name QIP_FILE ../rtl/pll2.qip
 set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/sdram.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/ddram.sv
 set_global_assignment -name VERILOG_FILE build_id.v
