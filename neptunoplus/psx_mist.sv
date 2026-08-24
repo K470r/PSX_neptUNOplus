@@ -100,21 +100,25 @@ wire clk_2x;   // 67.7376 MHz
 wire clk_3x;   // 101.6064 MHz - main SDRAM domain
 wire clk_vid;  // 53.693175 MHz - pixel clock (NTSC, fixed for now)
 
+// Classic ALTPLL port names (inclk0/areset/c0.../locked), NOT the
+// altera_pll names (refclk/rst/outclk_0.../locked) MiSTer's Cyclone V
+// version uses - Cyclone IV GX only has the classic ALTPLL megafunction
+// available in the MegaWizard/IP Catalog.
 pll pll
 (
-	.refclk(CLOCK_50),
-	.rst(1'b0),
-	.outclk_0(clk_1x),
-	.outclk_1(clk_2x),
-	.outclk_2(clk_3x),
+	.inclk0(CLOCK_50),
+	.areset(1'b0),
+	.c0(clk_1x),
+	.c1(clk_2x),
+	.c2(clk_3x),
 	.locked(pll_locked)
 );
 
 pll2 pll2
 (
-	.refclk(CLOCK_50),
-	.rst(1'b0),
-	.outclk_0(clk_vid),
+	.inclk0(CLOCK_50),
+	.areset(1'b0),
+	.c0(clk_vid),
 	.locked()
 );
 
