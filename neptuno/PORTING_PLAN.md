@@ -149,13 +149,26 @@ fases posteriores.
   (`hps_ext.v`/`EXT_BUS`) sin equivalente factible por SPI a 24MHz con el
   tamaño de estado de PSX. Se elimina `hps_ext.v` del fork; `ss_save`/
   `ss_load` se atan a 0 por ahora.
-- **PLL de vídeo dinámico (NTSC/PAL/debug/fast-forward vía reconfig
-  Avalon-MM de `pll_cfg`)**: ese mecanismo es exclusivo de la IP
-  `altera_pll` (Cyclone V/10/Arria), no existe en Cyclone IV GX (`altpll`
-  clásico, reconfig por scan-chain, API distinta). Fase 1 usa un `clk_vid`
-  fijo (NTSC, 53.693175MHz nominal). Reconfiguración dinámica PAL/NTSC
-  queda para una fase posterior (posiblemente con `altpll_reconfig` o con
-  un enfoque de NCO).
+- **PLL de vídeo dinámico (NTSC/PAL/240p-480i/fast-forward)**: el
+  mecanismo original (`pll_cfg`, reconfig Avalon-MM de la IP `altera_pll`)
+  es exclusivo de Cyclone V/10/Arria y no existe en Cyclone IV GX. Fase 1
+  usa un `clk_vid` fijo (NTSC, 53.693175MHz nominal) generado por un PLL
+  **separado** (`pll_vid.v`, distinto de `pll.v` que da clk_1x/2x/3x) —
+  esto es intencional y se queda así aunque de momento sea fijo: así el
+  futuro reconfig de vídeo no toca los relojes de CPU/SDRAM.
+  **Confirmado que el mecanismo de reconfig SÍ existe en este dispositivo**:
+  revisando `neptunoplus/pll2_mist.v` de `delgrom/NeoGeo_FPGA` (el PLL2 que
+  ya usan en esta misma placa) el `altpll` que genera Quartus para
+  `EP4CGX150DF27I7` expone los puertos de scan-chain
+  (`scanclk/scandata/scanclkena/configupdate/scandone`, ahí atados a
+  `PORT_UNUSED` porque NeoGeo no los necesita) — es la megafunción
+  `ALTPLL_RECONFIG` clásica (el mismo truco que ya usaban los cores de
+  MiST desde la época de Cyclone III). **Acción para cuando se genere
+  `pll_vid.v` en Quartus: elegir el modo "reconfigurable" del wizard (no
+  el modo fijo/simple)**, para no tener que rehacer el PLL cuando se
+  implemente el cambio dinámico NTSC/PAL/240p/480i en una fase posterior
+  (falta escribir el bloque de control que maneje `scanclk`/`scandata`/
+  `configupdate` — no forma parte del hito 1).
 - **SNAC** (pass-through de mando/memory card real vía puerto dedicado):
   requiere pines específicos que no están confirmados en el pinout de
   NeptUNO+. `snacPort1/2` forzados a 0.
@@ -180,16 +193,27 @@ fases posteriores.
 
 ## 7. Relojes
 
-De `rtl/pll.v`/`rtl/pll2.v` (IP `altera_pll`, Cyclone V, a regenerar):
+Dos módulos PLL, regenerados para Cyclone IV GX / `EP4CGX150DF27I7` a
+partir de los originales `rtl/pll.v`/`rtl/pll2.v` (IP `altera_pll`,
+Cyclone V):
 
-| Señal     | Frecuencia     | Uso                                   |
-|-----------|---------------:|----------------------------------------|
-| `clk_1x`  | 33.8688 MHz    | reloj de sistema/CPU (33.8688=44100×768)|
-| `clk_2x`  | 67.7376 MHz    | 2×, usado como `DDRAM_CLK`             |
-| `clk_3x`  | 101.6064 MHz   | dominio de la SDRAM principal          |
-| `clk_vid` | 53.693175 MHz  | reloj de píxel (NTSC, fijo en Fase 1)  |
+| Módulo     | Señal     | Frecuencia     | Uso                              |
+|------------|-----------|---------------:|-----------------------------------|
+| `pll.v`     | `clk_1x`  | 33.8688 MHz    | reloj de sistema/CPU (33.8688=44100×768) |
+| `pll.v`     | `clk_2x`  | 67.7376 MHz    | 2× (ya no alimenta DDRAM_CLK, ese bus se eliminó — ver §4) |
+| `pll.v`     | `clk_3x`  | 101.6064 MHz   | dominio de la SDRAM principal y expansión |
+| `pll_vid.v` | `clk_vid` | 53.693175 MHz  | reloj de píxel (NTSC, fijo en Fase 1) |
 
-Todos derivados de `CLOCK_50` (50MHz, pin `B14` confirmado en el pinout).
+`pll_vid.v` se mantiene como **PLL separado** (no fusionado con `pll.v`)
+a propósito: en una fase posterior necesitamos reconfigurar el reloj de
+vídeo en tiempo real (NTSC/PAL, 240p/480i) sin tocar los relojes de CPU/
+SDRAM — ver §6 para la confirmación de que el mecanismo de reconfig
+(`ALTPLL_RECONFIG` por scan-chain) sí existe en este dispositivo. Al
+generar `pll_vid.v` en el IP Catalog, usar el modo **reconfigurable**, no
+el modo fijo/simple.
+
+Ambos PLLs derivados de `CLOCK_50` (50MHz, pin `B14` confirmado en el
+pinout).
 
 **Importante:** 101.6064MHz coincide casi exactamente con el `FMAX_REQUIREMENT
 "101.58 MHz"` que usa el `.sdc` de `NeoGeo_neptunoplus` en el **mismo
