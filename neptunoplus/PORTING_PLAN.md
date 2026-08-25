@@ -309,3 +309,41 @@ la primera compilación real:
   existente del proyecto MiSTer) — confirmar que el `PRE_FLOW_SCRIPT_FILE`
   con ruta relativa `../sys/build_id.tcl` resuelve bien desde
   `neptunoplus/output_files` al correr `quartus_sh`.
+
+## 11. Bitácora de compilación real (Quartus 17.0.2, EP4CGX150DF27I7)
+
+1. **1er intento (Analysis & Synthesis falló)**: `rtl/RamMLAB.vhd`
+   instanciaba `altdpram` en modo `ram_block_type=>"MLAB"` con
+   `rdaddress_reg`/`outdata_reg=>"UNREGISTERED"` (lectura totalmente
+   asíncrona/combinacional) — Cyclone IV GX no tiene bloques MLAB y sus
+   M9K no pueden hacer esa lectura sin registro. **Arreglado** en
+   `rtl/RamMLAB.vhd` (con el visto bueno del usuario, ver commit
+   `2a28bff`): se reescribió con VHDL genérico inferido en vez de la
+   megafunción explícita, mismo comportamiento funcional exacto, así que
+   es compatible hacia atrás con el build de MiSTer/Cyclone V.
+2. **2do intento (Analysis & Synthesis falló)**: `sigma_delta_dac` sin
+   agregar a `files.qip` (yo lo instancié en `psx_mist.sv` pero olvidé
+   incluir `sys/sigma_delta_dac.v`). **Arreglado** en `files.qip`.
+3. **3er intento (compiló completo, 0 errores, 604 warnings)**: primer
+   bitstream generado. Pero **Critical Warning "Timing requirements not
+   met"** en los 3 corners (slow 85°C, slow 0°C, fast 0°C), con TNS muy
+   grande (~-1425ns peor caso) concentrado en el dominio `clk_1x`. Causa
+   más probable: el `.sdc` marcaba `SPI_SCK` como reloj normal con solo
+   *false paths* puntuales en vez de declarar todo ese dominio como
+   asíncrono respecto a los relojes del sistema — eso hace que TimeQuest
+   intente cronometrar como síncronos los cruces reales de dominio de
+   reloj entre los registros internos de `user_io`/`data_io`/`osd` (que
+   corren a `SPI_SCK`) y el resto del diseño, generando fallos masivos
+   sin relación con el hardware real (esos cruces ya deberían estar
+   sincronizados con flip-flops dobles, patrón ya probado en NeoGeo/
+   PCEngine). **Arreglado** en `PSX_neptunoplus.sdc` con
+   `set_clock_groups -asynchronous` entre `SPI_SCK` y los relojes
+   derivados de `pll`/`pll2`. **Pendiente de confirmar con una
+   recompilación real** que esto cierra el timing o si queda algo
+   residual que revisar con el reporte de rutas fallando.
+   - También apareció un Critical Warning de que `pll` no está "fully
+     compensated" por recibir su reloj de entrada por un pin remoto —
+     esperable al tener dos PLLs alimentados del mismo oscilador físico;
+     no se considera la causa principal de los fallos de timing, se deja
+     como pendiente de revisar solo si el fix del punto anterior no cierra
+     todo.
