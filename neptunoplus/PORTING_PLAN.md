@@ -338,12 +338,32 @@ la primera compilación real:
    sincronizados con flip-flops dobles, patrón ya probado en NeoGeo/
    PCEngine). **Arreglado** en `PSX_neptunoplus.sdc` con
    `set_clock_groups -asynchronous` entre `SPI_SCK` y los relojes
-   derivados de `pll`/`pll2`. **Pendiente de confirmar con una
-   recompilación real** que esto cierra el timing o si queda algo
-   residual que revisar con el reporte de rutas fallando.
+   derivados de `pll`/`pll2`.
    - También apareció un Critical Warning de que `pll` no está "fully
      compensated" por recibir su reloj de entrada por un pin remoto —
      esperable al tener dos PLLs alimentados del mismo oscilador físico;
-     no se considera la causa principal de los fallos de timing, se deja
-     como pendiente de revisar solo si el fix del punto anterior no cierra
-     todo.
+     no resultó ser la causa principal (ver punto 4).
+4. **4to intento (compiló, 0 errores, 608 warnings)**: el fix de
+   `SPI_SCK` funcionó — ese dominio pasó a slack positivo (+15.265ns).
+   Pero seguía fallando timing, ahora concentrado en `pll2|clk[0]`
+   (`clk_vid`, peor slack -5.36ns) y en menor medida `pll|clk[0]`/`clk[1]`
+   (-2.77/-2.50ns); `pll|clk[2]` (SDRAM a 101.6MHz, el reloj más rápido)
+   **ya pasaba** (+0.51ns). El reporte de rutas (`report_timing -setup
+   -npaths 20`) mostró que las 20 peores rutas eran **todas** el mismo
+   patrón: `errorCode[1]/[3]` (dominio `clk_1x`, dentro de `psx_top`) →
+   `gpu_overlay|...|col[]` (dominio `clk_vid`) — el overlay de depuración
+   "Error Overlay" (que dejé forzado en `errorOn=1'b1`). Es un cruce de
+   reloj real entre `pll` y `pll2` (dos PLLs independientes, sin relación
+   de fase), no un problema de lógica lenta.
+
+   Revisando el `.sdc` **original de MiSTer** (`PSX.sdc`, sin modificar,
+   en la raíz del repo) confirmé que ya declara explícitamente
+   `set_false_path` en ambas direcciones entre los relojes de `pll` y
+   `pll2` — exactamente esta relación. Mi `.sdc` tenía un error de
+   estructura: había agrupado `pll` y `pll2` **juntos** en un solo grupo
+   asíncrono frente a `SPI_SCK` (`-group [get_clocks {pll*}]`), lo cual
+   los trata como síncronos *entre sí*, en vez de tratarlos como un tercer
+   grupo separado. **Arreglado**: ahora son tres grupos
+   (`SPI_SCK` / `pll|*` / `pll2|*`), replicando la intención del `.sdc`
+   original de MiSTer. Pendiente de confirmar con una recompilación real
+   que esto cierra el timing.
