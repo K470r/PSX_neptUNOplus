@@ -188,5 +188,3 @@ set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SDRAM2_
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM2_*
 set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to SDRAM2_DQ[*]
 set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM2_DQ[*]
-
-set_global_assignment -name SDC_FILE PSX_neptunoplus.sdc
