@@ -114,12 +114,24 @@ pll pll
 	.locked(pll_locked)
 );
 
+// pll2 was generated with the scan-chain reconfiguration ports enabled
+// (Quartus "PLL Reconfiguration" tab) so it's ready for the future NTSC/
+// PAL/240p/480i switching without regenerating the IP. Nothing drives
+// the scan chain yet, so it's tied off inert for now, same as NeoGeo_FPGA
+// does in neptunoplus/pll2_mist.v (scanclkena=1, everything else 0) -
+// this reconfig block is a later phase (see PORTING_PLAN.md §6/§7).
 pll2 pll2
 (
 	.inclk0(CLOCK_50),
 	.areset(1'b0),
 	.c0(clk_vid),
-	.locked()
+	.locked(),
+	.scanclk(1'b0),
+	.scanclkena(1'b1),
+	.scandata(1'b0),
+	.configupdate(1'b0),
+	.scandataout(),
+	.scandone()
 );
 
 wire reset_or = status[0] | bios_download | exe_download | cdDownloadReset;
