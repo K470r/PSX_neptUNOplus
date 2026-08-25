@@ -12,6 +12,7 @@ set_global_assignment -name QIP_FILE pll.qip
 set_global_assignment -name QIP_FILE pll2.qip
 set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/sdram.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/ddram.sv
+set_global_assignment -name VERILOG_FILE ../sys/sigma_delta_dac.v
 set_global_assignment -name VERILOG_FILE build_id.v
 set_global_assignment -name SYSTEMVERILOG_FILE psx_mist.sv
 set_global_assignment -name QIP_FILE mist-modules/mist.qip
