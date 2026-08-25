@@ -367,3 +367,63 @@ la primera compilación real:
    (`SPI_SCK` / `pll|*` / `pll2|*`), replicando la intención del `.sdc`
    original de MiSTer. Pendiente de confirmar con una recompilación real
    que esto cierra el timing.
+5. **5to intento — el fix de arriba SÍ funcionó, pero costó detectarlo**:
+   varias recompilaciones seguidas (incluso borrando `db`/`incremental_db`
+   y recompilando completo desde la GUI de Quartus) seguían mostrando,
+   vía `report_sdc`/`report_clocks` en la Consola Tcl, que `SPI_SCK`
+   tenía período **1.000 ns** (1000 MHz) en vez de los 41.666 ns del
+   `.sdc` real — con la sección `Set Clock Groups` directamente ausente
+   del reporte, o sea que ni el `set_clock_groups` del punto 4 se estaba
+   aplicando. Se descartaron, en orden: contenido del archivo (correcto,
+   confirmado con Notepad por fuera de Quartus), organización del
+   `.qsf`/`files.qip`, restricciones ocultas en el submódulo
+   `mist-modules` (ninguna), caché vieja de compilación. La causa real:
+   **la sesión gráfica de TimeQuest se abría sobre un snapshot viejo**
+   y no releía el `.sdc` actual del disco pese a recompilar completo
+   desde la GUI. Se confirmó corriendo el flujo completo por línea de
+   comandos, como proceso totalmente aparte
+   (`quartus_sh --flow compile PSX_neptunoplus -c PSX_neptunoplus`),
+   que sí leyó el `.sdc` correcto (`SPI_SCK` → 41.666 ns / 24.0 MHz).
+   **Lección**: para verificar timing de forma confiable en este
+   proyecto, correr `quartus_sh --flow compile` desde línea de comandos
+   en vez de confiar en una sesión de Quartus GUI que lleve rato abierta.
+
+   De paso, se reorganizó `SDC_FILE`: estaba como
+   `set_global_assignment` directo en `PSX_neptunoplus.qsf`; se movió
+   dentro de `neptunoplus/files.qip` (commit `b88f3ac`/`f1d0421`),
+   replicando la convención exacta de MiSTer (`files.qip:8` tiene
+   `SDC_FILE PSX.sdc`, no el `PSX.qsf` de la raíz) — así el `.qsf` queda
+   sin ninguna referencia directa a archivos, todo vive en `files.qip`
+   vía `source files.qip`.
+
+   **Resultado de esa compilación limpia por línea de comandos**: 0
+   errores, timing prácticamente cerrado. TNS total del diseño:
+   **-0.794 ns** (contra los ~-1425 ns del intento 3). Slack por dominio:
+   `SPI_SCK` +15.057 ns, `pll2|clk[0]` (clk_vid) +9.822 ns, `pll|clk[1]`
+   +1.019 ns, `pll|clk[2]` +0.772 ns — todos positivos. Solo queda
+   **`pll|clk[0]`** (clk_1x, 33.85 MHz) con **-0.272 ns** de slack en el
+   peor caso (corner Slow 1200mV 85°C).
+
+   La ruta que falla es puramente combinacional, dentro de un único
+   dominio de reloj (no es CDC): `rtl/cd_top.vhd` línea 1774,
+   ```vhdl
+   -- registered, keeps the SPT table and the multiply off the command path
+   pause_rotation_ticks <= getSectorsPerTrack(currentLBA) * driveREADSPEED;
+   ```
+   Es el cálculo de "ticks de una rotación de disco" para la pausa de
+   CD-Audio: una tabla de sectores-por-pista más una multiplicación, ya
+   registrada intencionalmente por el propio MiSTer para sacarla del
+   camino crítico — pero en el fabric más lento de Cyclone IV GX (vs.
+   Cyclone V de MiSTer), ese margen ya no alcanza por 0.27 ns.
+
+   **Decisión**: no tocar esto ahora. Es lógica de CD-ROM (rotación/pausa
+   de audio) que no se ejercita en el Hito 1 (BIOS/EXE sin CD), y
+   `currentLBA` cambia con muy poca frecuencia (solo en seeks/lecturas),
+   así que aunque hubiera un glitch puntual ahí, no tiene ningún efecto
+   observable sin un CD insertado. Queda pendiente para cuando se aborde
+   soporte de CD (Tarea #8): la solución más probable ahí es un
+   `set_multicycle_path` sobre este registro específico, ya que
+   `currentLBA` no cambia cada ciclo y un ciclo extra de latencia en este
+   cálculo es imperceptible para el timing de CD-Audio. **No** es un
+   problema de la SDRAM dual, del framework MiST, ni de los PLLs — es
+   aislado a esta única línea de `cd_top.vhd`.
