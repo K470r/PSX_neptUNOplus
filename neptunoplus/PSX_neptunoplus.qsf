@@ -56,6 +56,17 @@ set_location_assignment PIN_AE9  -to SPI_SS4
 set_location_assignment PIN_AD14 -to CONF_DATA0
 
 #============================================================
+# DB9/Megadrive pad passthrough (see NeoGeo_neptunoplus_dr.qsf)
+#============================================================
+set_location_assignment PIN_AD4 -to JOY_CLK
+set_location_assignment PIN_AC4 -to JOY_LOAD
+set_location_assignment PIN_AD3 -to JOY_DATA
+set_location_assignment PIN_AF4 -to JOY_XCLK
+set_location_assignment PIN_AE3 -to JOY_XLOAD
+set_location_assignment PIN_AF5 -to JOY_XDATA
+set_location_assignment PIN_A19 -to JOY_SELECT
+
+#============================================================
 # VGA (24-bit resistor DAC)
 #============================================================
 set_location_assignment PIN_AE19 -to VGA_R[7]

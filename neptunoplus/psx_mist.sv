@@ -74,8 +74,31 @@ module psx_mist_core
 
 	// Analog audio out (sigma-delta, Phase 1 - I2S/PCM5121 path deferred)
 	output        AUDIO_L,
-	output        AUDIO_R
+	output        AUDIO_R,
+
+	// DB9/Megadrive pad passthrough (see ZXMicroJack/mist-firmware-rp2040
+	// wiki "DB9 - Megadrive - Jamma"): the FPGA doesn't decode anything
+	// here, it just reflects the RP2040's JOY_X* signals onto the physical
+	// DB9 connector's JOY_* pins (6-button select multiplexing is done by
+	// the RP2040 firmware). Same pattern/pins as NeoGeo_neptunoplus_dr.qsf.
+	input         JOY_XCLK,
+	input         JOY_XLOAD,
+	output        JOY_XDATA,
+	output        JOY_CLK,
+	output        JOY_LOAD,
+	input         JOY_DATA,
+	output        JOY_SELECT
 );
+
+reg joy_select = 1'b1;
+always @(posedge JOY_XLOAD) begin
+	joy_select <= ~joy_select | ~JOY_XCLK;
+end
+
+assign JOY_CLK    = JOY_XCLK;
+assign JOY_LOAD   = JOY_XLOAD;
+assign JOY_XDATA  = JOY_DATA;
+assign JOY_SELECT = joy_select;
 
 ///////////////////////////  CLOCK/RESET  ///////////////////////////////////
 
