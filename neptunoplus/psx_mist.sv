@@ -157,7 +157,18 @@ pll2 pll2
 	.scandone()
 );
 
-wire reset_or = status[0] | bios_download | exe_download | cdDownloadReset;
+// Power-on reset. On MiSTer this comes from sys_top's RESET input, which
+// stays asserted while the FPGA/HPS/SDRAM come up; here nothing drives it,
+// so hold the core in reset until pll is locked plus ~31ms (2^20 clk_1x
+// cycles), comfortably past sdram.sv's own init sequence.
+reg [20:0] por_cnt = 21'd0;
+wire       por     = ~por_cnt[20];
+always @(posedge clk_1x) begin
+	if (~pll_locked)  por_cnt <= 21'd0;
+	else if (por)     por_cnt <= por_cnt + 1'd1;
+end
+
+wire reset_or = por | buttons[1] | status[0] | bios_download | exe_download | cdDownloadReset;
 
 ////////////////////////////  MIST IO  ///////////////////////////////////
 
@@ -183,6 +194,7 @@ localparam CONF_STR = {
 };
 
 wire  [1:0] buttons;
+wire        scandoubler_disable, ypbpr, no_csync;
 wire [63:0] status;
 
 wire [31:0] joystick_0, joystick_1, joystick_2, joystick_3, joystick_4;
@@ -244,9 +256,9 @@ user_io #(.STRLEN($size(CONF_STR)>>3), .SD_IMAGES(4), .SD_BLKSZ(1'b0)) user_io
 	.joystick_analog_1(joystick_analog_1),
 	.buttons(buttons),
 	.switches(),
-	.scandoubler_disable(),
-	.ypbpr(),
-	.no_csync(),
+	.scandoubler_disable(scandoubler_disable),
+	.ypbpr(ypbpr),
+	.no_csync(no_csync),
 	.status(status),
 	.core_mod(),
 	.rtc(),
@@ -956,35 +968,57 @@ assign spuram_done = spuram_readack | spuram_writeack;
 
 ////////////////////////////  VIDEO  ////////////////////////////////////
 
-// No MiSTer-style scaler on NeptUNO+ (plain VGA DAC): the core's own
-// hs/vs/hbl/vbl/r/g/b already match the physical VGA timing directly, so
-// there is no video_freak/aspect-ratio-LUT/gamma_corr stage here - just
-// the classic MiST OSD overlay sitting between the core and the pins.
-wire [7:0] osd_r, osd_g, osd_b;
-
-osd #(.OUT_COLOR_DEPTH(8)) osd
+// The PSX GPU outputs native TV timing: ~15.7kHz horizontal (240p/480i),
+// NOT VGA timing. On MiSTer that goes through the ascal scaler (HDMI) or
+// straight out the analog port at 15kHz (VGA_SCALER=0), which a PC VGA
+// monitor can't sync to. The NeptUNO+ has only the VGA DAC, so we need
+// mist_video's scandoubler to get ~31.5kHz for a normal VGA monitor.
+// (scandoubler_disable from the firmware's ini still allows 15kHz RGB
+// out for CRT/SCART users, with csync on VGA_HS like every MiST core.)
+//
+// The GPU's pixel rate changes with the horizontal resolution (clk_vid
+// /10, /8, /7, /5, /4 for 256/320/368/512/640 wide), but the scandoubler
+// samples at a fixed rate. Sampling at clk_vid/4 (ce_divider=3) is the
+// native rate of 640-wide mode and oversamples every other mode, which
+// is fine because the core holds r/g/b stable between its own ce_pix.
+// clk_vid/4 is ~853 samples per 63.5us line, which fits the 1024-entry
+// line buffer (SD_HCNT_WIDTH=10); a line is ~3413 clk_vid cycles, which
+// fits SD_HSCNT_WIDTH=12.
+//
+// The core's syncs are active-high (MiSTer convention, sys_top inverts
+// them for the VGA pins). Invert here so VGA gets the usual negative
+// sync polarity of 640x480.
+mist_video #(
+	.COLOR_DEPTH(8),
+	.OUT_COLOR_DEPTH(8),
+	.SD_HCNT_WIDTH(10),
+	.SD_HSCNT_WIDTH(12)
+) mist_video
 (
 	.clk_sys(clk_vid),
-	.ce(ce_pix),
 
 	.SPI_SCK(SPI_SCK),
 	.SPI_SS3(SPI_SS3),
 	.SPI_DI(SPI_DI),
 
+	.scanlines(2'b00),
+	.ce_divider(3'd3),
+	.scandoubler_disable(scandoubler_disable),
+	.no_csync(no_csync),
+	.ypbpr(ypbpr),
 	.rotate(2'b00),
+	.blend(1'b0),
 
-	.R_in(r), .G_in(g), .B_in(b),
-	.HBlank(hbl), .VBlank(vbl), .HSync(hs), .VSync(vs),
+	.R(r), .G(g), .B(b),
+	.HBlank(hbl), .VBlank(vbl),
+	.HSync(~hs), .VSync(~vs),
 
-	.R_out(osd_r), .G_out(osd_g), .B_out(osd_b),
-	.osd_enable()
+	.osd_enable(),
+
+	.VGA_R(VGA_R), .VGA_G(VGA_G), .VGA_B(VGA_B),
+	.VGA_HS(VGA_HS), .VGA_VS(VGA_VS),
+	.VGA_HB(), .VGA_VB(), .VGA_DE()
 );
-
-assign VGA_R  = osd_r;
-assign VGA_G  = osd_g;
-assign VGA_B  = osd_b;
-assign VGA_HS = hs;
-assign VGA_VS = vs;
 
 ////////////////////////////  AUDIO  ////////////////////////////////////
 

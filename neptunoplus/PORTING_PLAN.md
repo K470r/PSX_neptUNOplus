@@ -190,11 +190,11 @@ fases posteriores.
 - **`video_freak` + tablas `aspect_ratio_lut_*` + recálculo de hblank
   fijo**: todo esto alimenta el escalador HDMI (`ascal`) de MiSTer
   (metadatos ARX/ARY para VGA_SCALER), que no existe en NeptUNO+ (DAC VGA
-  directo). Se elimina del fork; la salida de vídeo pasa directo del core
-  (`hs/vs/hbl/vbl/r/g/b`) al `osd.v` de `mist-modules` (que se puede
-  insertar directamente entre el core y los pines VGA físicos, ya que el
-  GPU de PSX ya genera timing VGA correcto por sí mismo — no hace falta
-  `mist_video.v`/scandoubler) y de ahí a los pines VGA.
+  directo). Se elimina del fork; la salida de vídeo del core
+  (`hs/vs/hbl/vbl/r/g/b`) pasa por `mist_video.v` de `mist-modules`
+  (scandoubler + OSD) y de ahí a los pines VGA. **Corrección:** una
+  versión anterior de este documento decía que el GPU ya generaba
+  timing VGA y que bastaba con `osd.v` — era falso, ver §11 punto 6.
 - **CHD**: `mist-firmware` no soporta CHD (solo CUE+BIN e ISO plano) — no
   se persigue soporte CHD en este port.
 - **CD-ROM (CUE+BIN)**: no es Fase 1, pero gracias a §3 y a que `psx.c` ya
@@ -427,3 +427,25 @@ la primera compilación real:
    cálculo es imperceptible para el timing de CD-Audio. **No** es un
    problema de la SDRAM dual, del framework MiST, ni de los PLLs — es
    aislado a esta única línea de `cd_top.vhd`.
+
+6. **Primer arranque en hardware: pantalla negra, el monitor ni engancha
+   señal.** Dos causas en `psx_mist.sv`:
+   - **Sin scandoubler (la causa del "sin señal").** El GPU de PSX saca
+     timing de TV nativo, ~15.7kHz horizontal (240p/480i). En MiSTer
+     eso lo convierte el escalador `ascal` para HDMI, y la salida
+     analógica sale a 15kHz tal cual (`VGA_SCALER=0` en `PSX.sv`). Un
+     monitor VGA de PC no sincroniza a 15kHz. Se sustituyó el `osd`
+     suelto por `mist_video` (scandoubler + OSD) sobre `clk_vid`,
+     muestreando a `clk_vid/4` (`ce_divider=3`): es la tasa nativa del
+     modo de 640 px y sobremuestrea el resto (256/320/368/512), que el
+     core mantiene estables entre sus propios `ce_pix`. Salida ~31.5kHz
+     / 60Hz. Syncs invertidas a polaridad negativa (el core las da
+     activas en alto, convención MiSTer; ahí las invierte `sys_top`).
+     `scandoubler_disable`/`ypbpr`/`no_csync` vienen de `user_io` (ini
+     del firmware), así que se puede seguir sacando 15kHz RGB para CRT.
+   - **Sin reset de encendido.** En MiSTer `RESET` viene de `sys_top` y
+     está activo mientras arranca todo; aquí nada lo generaba, así que el
+     core arrancaba sin reset. Añadido `por`: reset hasta `pll_locked` +
+     2^20 ciclos de `clk_1x` (~31ms), más `buttons[1]` como en el
+     original.
+
